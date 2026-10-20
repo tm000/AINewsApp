@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Sample AI</title>
+    <link>https://www.example.com/</link>
+    <item>
+      <title>OpenAI releases a new reasoning model</title>
+      <link>https://www.example.com/2026/10/openai-model/?utm_source=rss&amp;utm_medium=feed</link>
+      <pubDate>Mon, 19 Oct 2026 10:00:00 GMT</pubDate>
+      <description><![CDATA[<p>The company said the model <b>beats</b> previous versions.</p>]]></description>
+      <media:content url="https://cdn.example.com/img/openai.jpg" medium="image" />
+    </item>
+    <item>
+      <title>EU agrees on AI rules</title>
+      <link>https://www.example.com/2026/10/eu-ai-rules</link>
+      <pubDate>Mon, 19 Oct 2026 08:00:00 GMT</pubDate>
+      <description><![CDATA[<img src="https://cdn.example.com/pixel.gif" width="1" height="1"><img src="https://cdn.example.com/img/eu.png"> Lawmakers reached a deal.]]></description>
+    </item>
+    <item>
+      <title>生成AIの新サービスが登場</title>
+      <link>https://www.example.com/ja/news-1</link>
+      <pubDate>Mon, 19 Oct 2026 07:00:00 GMT</pubDate>
+      <enclosure url="https://cdn.example.com/img/ja.jpg" type="image/jpeg" length="1000"/>
+    </item>
+  </channel>
+</rss>

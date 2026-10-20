@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f172a">
+    <title>AIニュース</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/}">AIニュース</a>
+        <button id="refresh" class="btn-ghost" type="button" th:disabled="${crawling}"
+                th:text="${crawling} ? '更新中…' : '今すぐ更新'">今すぐ更新</button>
+    </div>
+    <nav class="tabs">
+        <a th:href="@{/(sort='new', source=${source}, lang=${lang}, q=${q})}"
+           th:classappend="${sort == 'new'} ? 'active'">新着順</a>
+        <a th:href="@{/(sort='popular', source=${source}, lang=${lang}, q=${q})}"
+           th:classappend="${sort == 'popular'} ? 'active'">注目度順</a>
+    </nav>
+</header>
+
+<main class="container">
+    <form class="filters" method="get" th:action="@{/}">
+        <input type="hidden" name="sort" th:value="${sort}">
+        <input type="search" name="q" th:value="${q}" placeholder="キーワード（例: OpenAI, 規制）" aria-label="キーワード">
+        <div class="filter-row">
+            <select name="period" aria-label="期間">
+                <option th:each="p : ${periods}" th:value="${p.key()}" th:text="${p.label}"
+                        th:selected="${p.key() == period}"></option>
+            </select>
+            <select name="lang" aria-label="言語">
+                <option value="" th:selected="${lang == ''}">全言語</option>
+                <option value="ja" th:selected="${lang == 'ja'}">日本語</option>
+                <option value="foreign" th:selected="${lang == 'foreign'}">海外</option>
+            </select>
+            <select name="source" aria-label="出典">
+                <option value="">全出典</option>
+                <option th:each="s : ${sources}" th:value="${s}" th:text="${s}" th:selected="${s == source}"></option>
+            </select>
+            <button type="submit" class="btn">絞り込み</button>
+        </div>
+    </form>
+
+    <div class="toolbar">
+        <span class="muted">
+            <span th:text="${articles.totalElements}">0</span>件
+            <th:block th:if="${lastCrawl != null}">・最終更新 <span th:text="${@fmt.ago(lastCrawl)}"></span></th:block>
+        </span>
+        <label class="switch" th:if="${translationEnabled}">
+            <input type="checkbox" id="auto-translate"> 海外記事を日本語で表示
+        </label>
+    </div>
+
+    <p class="empty" th:if="${articles.empty}">
+        <th:block th:if="${total == 0}">まだ記事がありません。初回の取得には1分ほどかかります。少し待ってから再読み込みしてください。</th:block>
+        <th:block th:unless="${total == 0}">条件に合う記事がありません。</th:block>
+    </p>
+
+    <ol class="list" th:start="${articles.number * articles.size + 1}">
+        <li class="card" th:each="a, st : ${articles}"
+            th:attr="data-id=${a.id},data-foreign=${a.foreign},data-translated=${a.titleJa != null}">
+            <a class="thumb" th:if="${a.imageUrl != null}" th:href="${a.url}" target="_blank" rel="noopener noreferrer">
+                <img th:src="${a.imageUrl}" alt="" loading="lazy" referrerpolicy="no-referrer"
+                     onerror="this.closest('.thumb').remove()">
+            </a>
+            <div class="body">
+                <div class="meta-top">
+                    <span class="rank" th:if="${sort == 'popular'}" th:text="${articles.number * articles.size + st.count}"></span>
+                    <a class="source" th:href="${a.sourceSite != null ? a.sourceSite : a.url}" target="_blank"
+                       rel="noopener noreferrer" th:text="${a.sourceName}">出典</a>
+                    <span class="lang" th:if="${a.foreign}" th:text="${#strings.toUpperCase(a.language)}">EN</span>
+                    <time th:datetime="${a.publishedAt}" th:title="${@fmt.dateTime(a.publishedAt)}"
+                          th:text="${@fmt.ago(a.publishedAt)}"></time>
+                </div>
+                <h2 class="title">
+                    <a th:href="${a.url}" target="_blank" rel="noopener noreferrer">
+                        <span class="t-orig" th:text="${a.title}"></span>
+                        <span class="t-ja" hidden th:text="${a.titleJa}"></span>
+                    </a>
+                </h2>
+                <p class="summary" th:if="${a.summary != null}">
+                    <span class="s-orig" th:text="${a.summary}"></span>
+                    <span class="s-ja" hidden th:text="${a.summaryJa}"></span>
+                </p>
+                <div class="meta-bottom">
+                    <a class="pill" th:if="${a.discussionUrl != null}" th:href="${a.discussionUrl}" target="_blank"
+                       rel="noopener noreferrer" title="Hacker News での反響">
+                        ▲ <span th:text="${a.points}"></span> ・ 💬 <span th:text="${a.comments}"></span>
+                    </a>
+                    <span class="pill" th:if="${a.coverage > 0}" title="同じ話題を扱う他媒体の数"
+                          th:text="|他 ${a.coverage} 媒体も報道|"></span>
+                    <button type="button" class="btn-link translate" th:if="${a.foreign and translationEnabled}">日本語に翻訳</button>
+                </div>
+            </div>
+        </li>
+    </ol>
+
+    <nav class="pager" th:if="${articles.totalPages > 1}">
+        <a th:if="${articles.hasPrevious()}" class="btn-ghost"
+           th:href="@{/(sort=${sort}, period=${period}, source=${source}, lang=${lang}, q=${q}, page=${articles.number - 1})}">← 前へ</a>
+        <span class="muted" th:text="|${articles.number + 1} / ${articles.totalPages}|"></span>
+        <a th:if="${articles.hasNext()}" class="btn-ghost"
+           th:href="@{/(sort=${sort}, period=${period}, source=${source}, lang=${lang}, q=${q}, page=${articles.number + 1})}">次へ →</a>
+    </nav>
+
+    <footer class="footer muted">
+        <a th:href="@{/sources}">取得元の一覧と状態</a>
+        <p>記事の著作権は各出典元に帰属します。タイトルをタップすると出典元のページが開きます。</p>
+    </footer>
+</main>
+<div id="toast" class="toast" hidden></div>
+<script th:src="@{/app.js}"></script>
+</body>
+</html>

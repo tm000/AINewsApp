@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>取得元 - AIニュース</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" th:href="@{/}">AIニュース</a>
+    </div>
+</header>
+<main class="container">
+    <h1 class="page-title">取得元の一覧と状態</h1>
+    <p class="muted">
+        最終クロール: <span th:text="${lastCrawl != null ? @fmt.dateTime(lastCrawl) : 'まだ'}"></span>
+        ・翻訳エンジン: <span th:text="${translator}"></span>
+    </p>
+    <p class="empty" th:if="${status.empty}">まだ一度もクロールしていません。</p>
+    <ul class="status-list">
+        <li th:each="s : ${status}" th:classappend="${s.error() != null} ? 'ng' : 'ok'">
+            <strong th:text="${s.name()}"></strong>
+            <span th:if="${s.error() == null}" th:text="|${s.fetched()} 件取得|"></span>
+            <span th:if="${s.error() != null}" class="err" th:text="|エラー: ${s.error()}|"></span>
+            <span class="muted" th:text="${@fmt.ago(s.lastRun())}"></span>
+        </li>
+    </ul>
+    <p><a th:href="@{/}">← 記事一覧へ戻る</a></p>
+</main>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{"hits":[
+ {"objectID":"1001","title":"OpenAI releases a new reasoning model","url":"https://example.com/2026/10/openai-model","points":420,"num_comments":180,"created_at_i":1792400000},
+ {"objectID":"1002","title":"Show HN: My weekend woodworking project","url":"https://wood.example.org/","points":50,"num_comments":3,"created_at_i":1792400000},
+ {"objectID":"1003","title":"Ask HN: Which LLM do you use for coding?","url":null,"story_text":"<p>Curious what people use.</p>","points":90,"num_comments":120,"created_at_i":1792400000}
+]}

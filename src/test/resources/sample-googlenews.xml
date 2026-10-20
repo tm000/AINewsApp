@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>生成AI - Google ニュース</title>
+    <link>https://news.google.com/</link>
+    <item>
+      <title>国内企業が生成AIを全社導入 - 日経新聞</title>
+      <link>https://news.google.com/rss/articles/abc</link>
+      <pubDate>Mon, 19 Oct 2026 09:00:00 GMT</pubDate>
+      <source url="https://www.nikkei.com">日経新聞</source>
+    </item>
+  </channel>
+</rss>
