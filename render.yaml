@@ -1,0 +1,14 @@
+# Render（https://render.com）用の設定。GitHub 連携でこのリポジトリを選ぶだけでデプロイできる
+services:
+  - type: web
+    name: ai-news
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      # 無料枠のメモリ(512MB)に収める
+      - key: JAVA_TOOL_OPTIONS
+        value: -Xmx320m -XX:+UseSerialGC
+      # 翻訳に DeepL を使う場合は Render の画面で値を入れる（空なら無料の MyMemory）
+      - key: DEEPL_API_KEY
+        sync: false

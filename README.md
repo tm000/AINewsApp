@@ -59,6 +59,15 @@ docker run -p 8080:8080 -v $(pwd)/data:/app/data ai-news
 
 データは `./data/`（H2 データベース）に保存されます。
 
+### スマホから使えるように公開する（Render・無料）
+
+1. https://render.com に GitHub アカウントでログイン
+2. 「New +」→「Blueprint」→ このリポジトリを選ぶ（`render.yaml` が自動で読まれます）
+3. 数分で `https://ai-news-xxxx.onrender.com` のような URL が発行されるので、スマホで開く
+
+無料プランは 15 分アクセスがないと停止し、次のアクセスで 1 分ほどかけて再起動します。
+データベースは再起動で消えますが、起動後に自動で再取得します。
+
 ## API
 
 | メソッド | パス | 内容 |
