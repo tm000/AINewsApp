@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -67,15 +66,16 @@ public class TranslationService {
         if (!a.isForeign() || translator == null || (a.getTitleJa() != null && (a.getSummary() == null || a.getSummaryJa() != null))) {
             return found;
         }
-        List<String> texts = new ArrayList<>();
-        texts.add(a.getTitle());
+        // タイトルを先に翻訳する。要約の翻訳だけ失敗してもタイトルの訳は残す
+        // （無料枠の消費を抑え、上限に当たっても何か表示できるようにするため）
+        List<String> title = translator.toJapanese(List.of(a.getTitle()), a.getLanguage());
+        a.setTitleJa(truncate(title.get(0), 1000));
         if (a.getSummary() != null) {
-            texts.add(a.getSummary());
-        }
-        List<String> ja = translator.toJapanese(texts, a.getLanguage());
-        a.setTitleJa(truncate(ja.get(0), 1000));
-        if (ja.size() > 1) {
-            a.setSummaryJa(truncate(ja.get(1), 3900));
+            try {
+                a.setSummaryJa(truncate(translator.toJapanese(List.of(a.getSummary()), a.getLanguage()).get(0), 3900));
+            } catch (Exception e) {
+                log.warn("summary translation skipped: {}: {}", articleId, e.toString());
+            }
         }
         return Optional.of(repo.save(a));
     }

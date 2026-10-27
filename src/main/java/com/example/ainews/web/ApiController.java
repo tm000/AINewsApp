@@ -5,6 +5,7 @@ import com.example.ainews.service.ArticleQueryService.Period;
 import com.example.ainews.service.ArticleQueryService.Query;
 import com.example.ainews.service.ArticleQueryService.SortOrder;
 import com.example.ainews.service.CrawlService;
+import com.example.ainews.translate.TranslationQuotaException;
 import com.example.ainews.translate.TranslationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,10 @@ public class ApiController {
             return translation.translate(id)
                     .<ResponseEntity<?>>map(a -> ResponseEntity.ok(ArticleDto.of(a)))
                     .orElse(ResponseEntity.notFound().build());
+        } catch (TranslationQuotaException e) {
+            log.warn("translate quota: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error",
+                    e.getMessage() + "。時間をおいてもう一度試してください（DeepL の API キーを設定すると上限が大きくなります）"));
         } catch (Exception e) {
             log.warn("translate failed: {}: {}", id, e.toString());
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", "翻訳に失敗しました: " + e.getMessage()));

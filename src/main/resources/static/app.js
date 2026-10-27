@@ -62,6 +62,7 @@
       return true;
     } catch (e) {
       showToast(String(e.message || e));
+      if (auto && auto.checked && String(e.message).includes('上限')) { auto.checked = false; writePref(false); }
       if (btn) btn.textContent = '日本語に翻訳';
       return false;
     } finally {

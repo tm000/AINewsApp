@@ -56,6 +56,9 @@ public class DeepLTranslator implements Translator {
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                 .build();
         HttpResponse<String> res = client.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() == 429 || res.statusCode() == 456) {
+            throw new TranslationQuotaException("DeepL の利用上限に達しました");
+        }
         if (res.statusCode() != 200) {
             throw new IOException("DeepL HTTP " + res.statusCode());
         }

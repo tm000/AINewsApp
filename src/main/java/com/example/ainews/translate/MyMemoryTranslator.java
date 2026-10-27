@@ -55,11 +55,28 @@ public class MyMemoryTranslator implements Translator {
         String url = API + "?q=" + URLEncoder.encode(chunk, StandardCharsets.UTF_8)
                 + "&langpair=" + URLEncoder.encode(sourceLang + "|ja", StandardCharsets.UTF_8)
                 + (email == null || email.isBlank() ? "" : "&de=" + URLEncoder.encode(email, StandardCharsets.UTF_8));
-        JsonNode root = mapper.readTree(http.getString(url));
+        String body;
+        try {
+            body = http.getString(url);
+        } catch (IOException e) {
+            if (e.getMessage() != null && e.getMessage().startsWith("HTTP 429")) {
+                throw new TranslationQuotaException("MyMemory の利用上限に達しました");
+            }
+            throw e;
+        }
+        JsonNode root = mapper.readTree(body);
         int status = root.path("responseStatus").asInt(200);
         String translated = root.path("responseData").path("translatedText").asText(null);
+        String details = root.path("responseDetails").asText("");
+        if (status == 429 || details.toUpperCase().contains("USED ALL AVAILABLE FREE TRANSLATIONS")) {
+            throw new TranslationQuotaException("MyMemory の無料枠（1日分）を使い切りました");
+        }
         if (status != 200 || translated == null) {
-            throw new IOException("MyMemory: " + root.path("responseDetails").asText("error " + status));
+            throw new IOException("MyMemory: " + (details.isEmpty() ? "error " + status : details));
+        }
+        // 上限到達時に原文がそのまま「翻訳結果」として返ることがあるため弾く
+        if (translated.toUpperCase().contains("MYMEMORY WARNING")) {
+            throw new TranslationQuotaException("MyMemory の無料枠（1日分）を使い切りました");
         }
         return translated;
     }
