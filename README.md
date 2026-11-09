@@ -80,5 +80,24 @@ docker run -p 8080:8080 -v $(pwd)/data:/app/data ai-news
 ## テスト
 
 ```bash
-mvn test
+mvn test          # 単体テスト・結合テスト（ブラウザ不要）
+mvn test -Pe2e    # Playwright による E2E テスト（実際のブラウザで画面を操作）
 ```
+
+E2E テスト（`src/test/java/com/example/ainews/e2e/`）はアプリをテスト用のメモリ DB で起動し、
+ヘッドレスの Chromium で次の操作を確認します。ニュースサイトや翻訳 API には接続しません（翻訳はテスト用の偽エンジン）。
+
+- 新着順 ⇔ 注目度順の切り替えと並び順
+- 出典リンクとサムネイルの表示
+- キーワード・言語での絞り込み
+- 記事ごとの翻訳と原文への切り替え、翻訳の利用上限エラーの表示、自動翻訳スイッチ
+- 取得元ページへの移動
+- スマホ幅（390px）で横スクロールが出ないこと
+
+初回はブラウザ（Chromium）が自動でダウンロードされます。
+
+- `-Dheadless=false` を付けるとブラウザ画面を表示しながら実行します
+- 失敗したテストのスクリーンショットは `target/e2e-screenshots/` に保存されます
+- 環境変数 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` でインストール済みの Chromium / Chrome を使えます
+
+GitHub Actions（`.github/workflows/test.yml`）で、push と Pull Request のたびに両方のテストが自動で実行されます。
