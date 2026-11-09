@@ -3,6 +3,7 @@ package com.example.ainews.e2e;
 import com.example.ainews.crawler.FetchedArticle;
 import com.example.ainews.repo.ArticleRepository;
 import com.example.ainews.service.ArticleIngestService;
+import com.example.ainews.service.CrawlService;
 import com.example.ainews.translate.FakeTranslatorConfig;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
@@ -63,6 +64,7 @@ class BrowserE2ETest {
     @LocalServerPort int port;
     @Autowired ArticleIngestService ingest;
     @Autowired ArticleRepository repo;
+    @Autowired CrawlService crawl;
 
     BrowserContext context;
     Page page;
@@ -256,6 +258,47 @@ class BrowserE2ETest {
         // 利用上限に当たったらスイッチは自動でオフになる
         assertThat(page.locator("#toast")).containsText("利用上限");
         assertThat(page.getByLabel("海外記事を日本語で表示")).not().isChecked();
+        failed = false;
+    }
+
+    @Test
+    @DisplayName("同じ話題の記事は 1 枚にまとまり、他の出典を開ける")
+    void groupsSameStoryIntoOneCard() {
+        Instant now = Instant.now();
+        ingest.ingest(List.of(new FetchedArticle("https://another.example/hot", "Hot AI story spreads widely", null,
+                "Another Media", "https://another.example", "Another Media", null, now.minus(Duration.ofHours(5)),
+                "en", 1.0, 0, 0, null)));
+        ingest.rescore(Duration.ofDays(30));
+
+        page.navigate(url("/?sort=popular"));
+        // まとめられた記事は一覧に単独では出ない
+        assertThat(titles()).hasCount(4);
+        Locator hot = card("Hot AI story");
+        Locator related = hot.locator("details.related");
+        assertThat(related.locator("summary")).hasText("同じ話題を他 1 件の記事が報道");
+        assertThat(related.getByText("Hot AI story spreads widely")).isHidden();
+
+        related.locator("summary").click();
+        Locator link = related.getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Hot AI story spreads widely"));
+        assertThat(link).isVisible();
+        assertThat(link).hasAttribute("href", "https://another.example/hot");
+        assertThat(related.locator(".source")).hasText("Another Media");
+
+        // 出典で絞り込むと、まとめずにその出典の記事を出す
+        page.navigate(url("/?source=Another%20Media"));
+        assertThat(titles()).hasCount(1);
+        assertThat(titles().first()).hasText("Hot AI story spreads widely");
+        failed = false;
+    }
+
+    @Test
+    @DisplayName("「今すぐ更新」を続けて押すと待つように案内する")
+    void refreshButtonHasCooldown() {
+        crawl.markStartedForTest(Instant.now());
+        page.navigate(url("/"));
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("今すぐ更新")).click();
+        assertThat(page.locator("#toast")).containsText("少し前に更新したばかりです");
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("今すぐ更新"))).isEnabled();
         failed = false;
     }
 

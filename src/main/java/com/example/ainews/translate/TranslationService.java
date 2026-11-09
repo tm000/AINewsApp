@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.PageRequest;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -37,11 +40,13 @@ public class TranslationService {
 
     static Translator createTranslator(AiNewsProperties.Translate cfg, HttpFetcher http) {
         String provider = cfg.getProvider() == null ? "" : cfg.getProvider().trim().toLowerCase(Locale.ROOT);
+        boolean hasClaude = cfg.getAnthropicApiKey() != null && !cfg.getAnthropicApiKey().isBlank();
         boolean hasDeepL = cfg.getDeeplApiKey() != null && !cfg.getDeeplApiKey().isBlank();
         if (provider.isEmpty()) {
-            provider = hasDeepL ? "deepl" : "mymemory";
+            provider = hasClaude ? "claude" : hasDeepL ? "deepl" : "mymemory";
         }
         return switch (provider) {
+            case "claude" -> hasClaude ? new ClaudeTranslator(cfg.getAnthropicApiKey().trim(), cfg.getClaudeModel()) : null;
             case "deepl" -> hasDeepL ? new DeepLTranslator(cfg.getDeeplApiKey().trim()) : null;
             case "mymemory" -> new MyMemoryTranslator(http, cfg.getMymemoryEmail());
             default -> null;
@@ -66,18 +71,64 @@ public class TranslationService {
         if (!a.isForeign() || translator == null || (a.getTitleJa() != null && (a.getSummary() == null || a.getSummaryJa() != null))) {
             return found;
         }
-        // タイトルを先に翻訳する。要約の翻訳だけ失敗してもタイトルの訳は残す
-        // （無料枠の消費を抑え、上限に当たっても何か表示できるようにするため）
-        List<String> title = translator.toJapanese(List.of(a.getTitle()), a.getLanguage());
-        a.setTitleJa(truncate(title.get(0), 1000));
-        if (a.getSummary() != null) {
+        Translator.Digest d = translator.digest(List.of(request(a))).get(0);
+        if (d == null) {
+            throw new java.io.IOException("翻訳結果が返りませんでした");
+        }
+        apply(a, d);
+        return Optional.of(repo.save(a));
+    }
+
+    /** 巡回のたびに新着記事をまとめて翻訳できるエンジンか */
+    public boolean isBulkEnabled() {
+        return translator != null && translator.supportsBulk();
+    }
+
+    /**
+     * まだ翻訳していない海外記事を新しい順に最大 limit 件、batchSize 件ずつまとめて翻訳する。
+     * 利用上限などで失敗したら、そこで打ち切る（残りは次の巡回で続きから）。
+     *
+     * @return 翻訳した件数
+     */
+    public int translatePending(int limit, int batchSize) {
+        if (!isBulkEnabled() || limit <= 0) {
+            return 0;
+        }
+        List<Article> targets = repo.findUntranslatedForeign(PageRequest.of(0, limit));
+        int done = 0;
+        for (int i = 0; i < targets.size(); i += Math.max(1, batchSize)) {
+            List<Article> batch = targets.subList(i, Math.min(targets.size(), i + Math.max(1, batchSize)));
             try {
-                a.setSummaryJa(truncate(translator.toJapanese(List.of(a.getSummary()), a.getLanguage()).get(0), 3900));
+                List<Translator.Digest> res = translator.digest(batch.stream().map(TranslationService::request).toList());
+                List<Article> changed = new ArrayList<>();
+                for (int j = 0; j < batch.size() && j < res.size(); j++) {
+                    if (res.get(j) != null) {
+                        apply(batch.get(j), res.get(j));
+                        changed.add(batch.get(j));
+                    }
+                }
+                repo.saveAll(changed);
+                done += changed.size();
             } catch (Exception e) {
-                log.warn("summary translation skipped: {}: {}", articleId, e.toString());
+                log.warn("bulk translation stopped: {}", e.toString());
+                break;
             }
         }
-        return Optional.of(repo.save(a));
+        if (done > 0) {
+            log.info("translated {} articles", done);
+        }
+        return done;
+    }
+
+    private static Translator.DigestRequest request(Article a) {
+        return new Translator.DigestRequest(a.getTitle(), a.getSummary(), a.getLanguage());
+    }
+
+    private static void apply(Article a, Translator.Digest d) {
+        a.setTitleJa(truncate(d.titleJa(), 1000));
+        if (d.summaryJa() != null) {
+            a.setSummaryJa(truncate(d.summaryJa(), 3900));
+        }
     }
 
     private static String truncate(String s, int max) {

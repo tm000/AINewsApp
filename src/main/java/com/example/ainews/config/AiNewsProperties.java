@@ -29,6 +29,8 @@ public class AiNewsProperties {
         private int retentionDays = 30;
         private int ogImageFetchLimit = 40;
         private String userAgent = "Mozilla/5.0 (compatible; AiNewsBot/0.1)";
+        /** 「今すぐ更新」を押せる間隔（前回の巡回開始からこの時間は受け付けない） */
+        private Duration manualCooldown = Duration.ofMinutes(5);
 
         public Duration getInitialDelay() { return initialDelay; }
         public void setInitialDelay(Duration initialDelay) { this.initialDelay = initialDelay; }
@@ -40,6 +42,8 @@ public class AiNewsProperties {
         public void setOgImageFetchLimit(int ogImageFetchLimit) { this.ogImageFetchLimit = ogImageFetchLimit; }
         public String getUserAgent() { return userAgent; }
         public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+        public Duration getManualCooldown() { return manualCooldown; }
+        public void setManualCooldown(Duration manualCooldown) { this.manualCooldown = manualCooldown; }
     }
 
     public static class HackerNews {
@@ -59,6 +63,12 @@ public class AiNewsProperties {
         private String provider = "";
         private String deeplApiKey = "";
         private String mymemoryEmail = "";
+        private String anthropicApiKey = "";
+        private String claudeModel = "claude-haiku-5-5";
+        /** 巡回のたびに自動で翻訳する海外記事の最大件数（Claude / DeepL のときだけ） */
+        private int autoLimit = 60;
+        /** 1 回の API 呼び出しでまとめて翻訳する記事数 */
+        private int batchSize = 10;
 
         public String getProvider() { return provider; }
         public void setProvider(String provider) { this.provider = provider; }
@@ -66,6 +76,14 @@ public class AiNewsProperties {
         public void setDeeplApiKey(String deeplApiKey) { this.deeplApiKey = deeplApiKey; }
         public String getMymemoryEmail() { return mymemoryEmail; }
         public void setMymemoryEmail(String mymemoryEmail) { this.mymemoryEmail = mymemoryEmail; }
+        public String getAnthropicApiKey() { return anthropicApiKey; }
+        public void setAnthropicApiKey(String anthropicApiKey) { this.anthropicApiKey = anthropicApiKey; }
+        public String getClaudeModel() { return claudeModel; }
+        public void setClaudeModel(String claudeModel) { this.claudeModel = claudeModel; }
+        public int getAutoLimit() { return autoLimit; }
+        public void setAutoLimit(int autoLimit) { this.autoLimit = autoLimit; }
+        public int getBatchSize() { return batchSize; }
+        public void setBatchSize(int batchSize) { this.batchSize = batchSize; }
     }
 
     public static class Feed {
@@ -75,6 +93,8 @@ public class AiNewsProperties {
         private double weight = 1.0;
         /** Google ニュースのような集約フィード。記事ごとの出典を item の source 要素から取る */
         private boolean aggregator = false;
+        /** 指定すると、タイトルか要約にどれかの語を含む記事だけを取り込む（AI 専門でない媒体用） */
+        private List<String> keywords = new ArrayList<>();
 
         public Feed() {}
 
@@ -96,5 +116,7 @@ public class AiNewsProperties {
         public void setWeight(double weight) { this.weight = weight; }
         public boolean isAggregator() { return aggregator; }
         public void setAggregator(boolean aggregator) { this.aggregator = aggregator; }
+        public List<String> getKeywords() { return keywords; }
+        public void setKeywords(List<String> keywords) { this.keywords = keywords; }
     }
 }

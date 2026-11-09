@@ -16,7 +16,14 @@
       refresh.disabled = true;
       refresh.textContent = '更新中…';
       try {
-        await fetch('/api/crawl', { method: 'POST' });
+        const res = await fetch('/api/crawl', { method: 'POST' });
+        if (res.status === 429) {
+          const data = await res.json().catch(() => ({}));
+          showToast(data.message || 'しばらくしてからもう一度お試しください');
+          refresh.disabled = false;
+          refresh.textContent = '今すぐ更新';
+          return;
+        }
         for (let i = 0; i < 60; i++) {
           await new Promise(r => setTimeout(r, 3000));
           const s = await (await fetch('/api/status')).json();
@@ -81,7 +88,14 @@
 
   const auto = document.getElementById('auto-translate');
   const KEY = 'ainews.autoTranslate';
-  function readPref() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
+  // 保存された設定が無ければ、サーバーが自動翻訳しているときは日本語表示を既定にする
+  function readPref() {
+    const fallback = !!auto && auto.dataset.defaultOn === 'true';
+    try {
+      const v = localStorage.getItem(KEY);
+      return v === null ? fallback : v === '1';
+    } catch (e) { return fallback; }
+  }
   function writePref(v) { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) { /* 保存できなくても動作は続ける */ } }
 
   async function applyAuto(on) {

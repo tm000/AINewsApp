@@ -1,12 +1,14 @@
 package com.example.ainews.repo;
 
 import com.example.ainews.model.Article;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +19,11 @@ public interface ArticleRepository extends JpaRepository<Article, Long>, JpaSpec
     List<Article> findByPublishedAtAfter(Instant since);
 
     List<Article> findTop100ByImageUrlIsNullAndImageLookupDoneFalseOrderByPublishedAtDesc();
+
+    @Query("select a from Article a where a.titleJa is null and a.language not like 'ja%' order by a.publishedAt desc")
+    List<Article> findUntranslatedForeign(Pageable pageable);
+
+    List<Article> findByClusterIdIn(Collection<Long> clusterIds);
 
     @Query("select distinct a.sourceName from Article a order by a.sourceName")
     List<String> findSourceNames();
