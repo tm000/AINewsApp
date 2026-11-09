@@ -19,6 +19,10 @@
 
     <properties>
         <java.version>21</java.version>
+        <playwright.version>1.63.0</playwright.version>
+        <!-- 通常の mvn test ではブラウザを使う E2E テストを除外する（mvn verify -Pe2e で実行） -->
+        <surefire.excludedGroups>e2e</surefire.excludedGroups>
+        <surefire.groups></surefire.groups>
     </properties>
 
     <dependencies>
@@ -59,6 +63,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -67,6 +77,25 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <groups>${surefire.groups}</groups>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- mvn test -Pe2e : Playwright の E2E テストだけを実行 -->
+        <profile>
+            <id>e2e</id>
+            <properties>
+                <surefire.groups>e2e</surefire.groups>
+                <surefire.excludedGroups></surefire.excludedGroups>
+            </properties>
+        </profile>
+    </profiles>
 </project>

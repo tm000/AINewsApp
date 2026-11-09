@@ -1,0 +1,37 @@
+name: test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 単体テスト
+        run: mvn -B test
+
+      - name: Playwright のブラウザをインストール
+        run: >
+          mvn -B -q exec:java -Dexec.classpathScope=test
+          -Dexec.mainClass=com.microsoft.playwright.CLI
+          -Dexec.args="install --with-deps chromium"
+
+      - name: E2E テスト（Playwright）
+        run: mvn -B test -Pe2e
+
+      - name: 失敗時のスクリーンショットを保存
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: target/e2e-screenshots/
+          if-no-files-found: ignore
