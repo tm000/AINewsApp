@@ -25,6 +25,11 @@ public interface Translator {
         return false;
     }
 
+    /** 巡回時の自動翻訳で要約も訳すか（false ならタイトルだけ。要約はボタンを押したときに訳す） */
+    default boolean bulkIncludesSummary() {
+        return true;
+    }
+
     /**
      * 記事のタイトルを日本語にし、要約を日本語にする。結果は items と同じ順番・同じ件数で返す。
      * 既定はタイトルと要約を別々に翻訳する。要約の翻訳だけ失敗してもタイトルの訳は返す

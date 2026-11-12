@@ -64,6 +64,7 @@ public class AiNewsProperties {
         private String deeplApiKey = "";
         private String mymemoryEmail = "";
         private String anthropicApiKey = "";
+        private String googleApiKey = "";
         private String claudeModel = "claude-haiku-5-5";
         /** 巡回のたびに自動で翻訳する海外記事の最大件数（Claude / DeepL のときだけ） */
         private int autoLimit = 60;
@@ -76,6 +77,8 @@ public class AiNewsProperties {
         public void setDeeplApiKey(String deeplApiKey) { this.deeplApiKey = deeplApiKey; }
         public String getMymemoryEmail() { return mymemoryEmail; }
         public void setMymemoryEmail(String mymemoryEmail) { this.mymemoryEmail = mymemoryEmail; }
+        public String getGoogleApiKey() { return googleApiKey; }
+        public void setGoogleApiKey(String googleApiKey) { this.googleApiKey = googleApiKey; }
         public String getAnthropicApiKey() { return anthropicApiKey; }
         public void setAnthropicApiKey(String anthropicApiKey) { this.anthropicApiKey = anthropicApiKey; }
         public String getClaudeModel() { return claudeModel; }

@@ -49,6 +49,9 @@
     const sOrig = card.querySelector('.s-orig');
     if (showJa && sJa && sOrig && !sJa.textContent.trim()) sOrig.hidden = false;
     card.dataset.showing = showJa ? 'ja' : 'orig';
+    // タイトルだけ自動翻訳済みで要約が未翻訳のときは「要約も翻訳」を出す
+    const sumBtn = card.querySelector('.translate-summary');
+    if (sumBtn) sumBtn.hidden = !(showJa && sJa && !sJa.textContent.trim());
     const btn = card.querySelector('.translate');
     if (btn) btn.textContent = showJa ? '原文を表示' : '日本語に翻訳';
   }
@@ -83,6 +86,28 @@
     if (!btn) return;
     btn.addEventListener('click', () => {
       if (card.dataset.showing === 'ja') setLang(card, false); else translate(card);
+    });
+  });
+
+  cards.forEach(card => {
+    const sumBtn = card.querySelector('.translate-summary');
+    if (!sumBtn) return;
+    sumBtn.addEventListener('click', async () => {
+      sumBtn.disabled = true;
+      sumBtn.textContent = '翻訳中…';
+      try {
+        const res = await fetch('/api/articles/' + card.dataset.id + '/translate', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.status);
+        if (data.titleJa) card.querySelector('.t-ja').textContent = data.titleJa;
+        card.querySelector('.s-ja').textContent = data.summaryJa || '';
+        setLang(card, true);
+      } catch (e) {
+        showToast(String(e.message || e));
+      } finally {
+        sumBtn.disabled = false;
+        sumBtn.textContent = '要約も翻訳';
+      }
     });
   });
 

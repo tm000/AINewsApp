@@ -36,9 +36,11 @@ ainews:
     min-points: 10
     queries: [ "AI", "LLM", "OpenAI", "GPT", "Anthropic", "Claude", "Gemini", "machine learning" ]
   translate:
-    # claude | deepl | mymemory | none
-    # 空なら Claude のキーがあれば claude、次に DeepL のキーがあれば deepl、どちらも無ければ mymemory
+    # claude | google | deepl | mymemory | none
+    # 空ならキーが設定されているものを Claude → Google → DeepL の順に使い、どれも無ければ mymemory
     provider: ${TRANSLATE_PROVIDER:}
+    # Google Cloud Translation API のキー（毎月 50 万文字まで無料）。巡回時はタイトルだけ自動翻訳する
+    google-api-key: ${GOOGLE_TRANSLATE_API_KEY:}
     # Claude API のキー（https://console.anthropic.com で発行）。タイトルの翻訳と日本語の 3 行要約を作る
     anthropic-api-key: ${ANTHROPIC_API_KEY:}
     claude-model: ${CLAUDE_MODEL:claude-haiku-5-5}

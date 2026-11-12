@@ -303,6 +303,30 @@ class BrowserE2ETest {
     }
 
     @Test
+    @DisplayName("タイトルだけ自動翻訳済みの記事は、要約をあとから翻訳できる")
+    void translatesSummaryLaterWhenOnlyTitleWasTranslated() {
+        var a = repo.findByUrl("https://example.com/new").orElseThrow();
+        a.setTitleJa("真新しいAIの話");
+        repo.save(a);
+
+        page.navigate(url("/"));
+        Locator fresh = card("真新しいAIの話");
+        Locator summaryButton = fresh.locator("button.translate-summary");
+        assertThat(summaryButton).isHidden();
+        fresh.locator("button.translate").click();
+        assertThat(fresh.locator(".t-ja")).hasText("真新しいAIの話");
+        // 要約はまだ原文のまま
+        assertThat(fresh.locator(".s-orig")).isVisible();
+        assertThat(summaryButton).isVisible();
+
+        summaryButton.click();
+        assertThat(fresh.locator(".s-ja")).hasText(FakeTranslatorConfig.PREFIX + "A fresh summary");
+        assertThat(fresh.locator(".s-orig")).isHidden();
+        assertThat(summaryButton).isHidden();
+        failed = false;
+    }
+
+    @Test
     @DisplayName("取得元ページを開ける")
     void opensSourcesPage() {
         page.navigate(url("/"));

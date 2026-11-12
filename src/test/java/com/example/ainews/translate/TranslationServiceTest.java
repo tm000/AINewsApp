@@ -2,6 +2,8 @@ package com.example.ainews.translate;
 
 import com.example.ainews.model.Article;
 import com.example.ainews.repo.ArticleRepository;
+import com.example.ainews.translate.Translator.Digest;
+import com.example.ainews.translate.Translator.DigestRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Pageable;
 
@@ -68,6 +70,25 @@ class TranslationServiceTest {
         assertThat(pending.get(0).getSummaryJa()).isEqualTo("・要約");
         assertThat(pending.get(4).getTitleJa()).isNull();
         assertThat(pending.get(6).getTitleJa()).isNull();
+    }
+
+    @Test
+    void titlesOnlyWhenEngineSkipsSummaries() {
+        List<Article> pending = List.of(foreign("story"));
+        when(repo.findUntranslatedForeign(any(Pageable.class))).thenReturn(pending);
+        List<DigestRequest> seen = new ArrayList<>();
+        Translator titlesOnly = new BulkTranslator() {
+            @Override public boolean bulkIncludesSummary() { return false; }
+            @Override public List<Digest> digest(List<DigestRequest> items) throws Exception {
+                seen.addAll(items);
+                return items.stream().map(r -> new Digest("訳:" + r.title(), null)).toList();
+            }
+        };
+
+        assertThat(new TranslationService(repo, titlesOnly).translatePending(60, 10)).isEqualTo(1);
+        assertThat(seen.get(0).summary()).isNull();
+        assertThat(pending.get(0).getTitleJa()).isEqualTo("訳:story");
+        assertThat(pending.get(0).getSummaryJa()).isNull();
     }
 
     @Test

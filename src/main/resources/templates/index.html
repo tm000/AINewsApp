@@ -93,6 +93,8 @@
                     <span class="pill" th:if="${a.coverage > 0 and related[a.id] == null}" title="同じ話題を扱う他媒体の数"
                           th:text="|他 ${a.coverage} 媒体も報道|"></span>
                     <button type="button" class="btn-link translate" th:if="${a.foreign and translationEnabled}">日本語に翻訳</button>
+                    <button type="button" class="btn-link translate-summary" hidden
+                            th:if="${a.foreign and translationEnabled and a.summary != null}">要約も翻訳</button>
                 </div>
                 <details class="related" th:if="${related[a.id] != null}">
                     <summary th:text="|同じ話題を他 ${#lists.size(related[a.id])} 件の記事が報道|">同じ話題の記事</summary>

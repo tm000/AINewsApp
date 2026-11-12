@@ -41,12 +41,14 @@ public class TranslationService {
     static Translator createTranslator(AiNewsProperties.Translate cfg, HttpFetcher http) {
         String provider = cfg.getProvider() == null ? "" : cfg.getProvider().trim().toLowerCase(Locale.ROOT);
         boolean hasClaude = cfg.getAnthropicApiKey() != null && !cfg.getAnthropicApiKey().isBlank();
+        boolean hasGoogle = cfg.getGoogleApiKey() != null && !cfg.getGoogleApiKey().isBlank();
         boolean hasDeepL = cfg.getDeeplApiKey() != null && !cfg.getDeeplApiKey().isBlank();
         if (provider.isEmpty()) {
-            provider = hasClaude ? "claude" : hasDeepL ? "deepl" : "mymemory";
+            provider = hasClaude ? "claude" : hasGoogle ? "google" : hasDeepL ? "deepl" : "mymemory";
         }
         return switch (provider) {
             case "claude" -> hasClaude ? new ClaudeTranslator(cfg.getAnthropicApiKey().trim(), cfg.getClaudeModel()) : null;
+            case "google" -> hasGoogle ? new GoogleTranslator(cfg.getGoogleApiKey().trim()) : null;
             case "deepl" -> hasDeepL ? new DeepLTranslator(cfg.getDeeplApiKey().trim()) : null;
             case "mymemory" -> new MyMemoryTranslator(http, cfg.getMymemoryEmail());
             default -> null;
@@ -70,6 +72,11 @@ public class TranslationService {
         Article a = found.get();
         if (!a.isForeign() || translator == null || (a.getTitleJa() != null && (a.getSummary() == null || a.getSummaryJa() != null))) {
             return found;
+        }
+        if (a.getTitleJa() != null) {
+            // タイトルは巡回時に訳してあるので、要約だけを訳す（文字数の節約）
+            a.setSummaryJa(truncate(translator.toJapanese(List.of(a.getSummary()), a.getLanguage()).get(0), 3900));
+            return Optional.of(repo.save(a));
         }
         Translator.Digest d = translator.digest(List.of(request(a))).get(0);
         if (d == null) {
@@ -99,7 +106,10 @@ public class TranslationService {
         for (int i = 0; i < targets.size(); i += Math.max(1, batchSize)) {
             List<Article> batch = targets.subList(i, Math.min(targets.size(), i + Math.max(1, batchSize)));
             try {
-                List<Translator.Digest> res = translator.digest(batch.stream().map(TranslationService::request).toList());
+                boolean withSummary = translator.bulkIncludesSummary();
+                List<Translator.Digest> res = translator.digest(batch.stream()
+                        .map(a -> withSummary ? request(a) : new Translator.DigestRequest(a.getTitle(), null, a.getLanguage()))
+                        .toList());
                 List<Article> changed = new ArrayList<>();
                 for (int j = 0; j < batch.size() && j < res.size(); j++) {
                     if (res.get(j) != null) {
