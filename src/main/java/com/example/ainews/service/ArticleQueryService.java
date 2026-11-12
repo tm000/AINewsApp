@@ -13,7 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 
 @Service
@@ -54,7 +57,20 @@ public class ArticleQueryService {
         }
     }
 
-    public record Query(SortOrder sort, Period period, String source, String lang, String keyword, int page, int size) {}
+    public record Query(SortOrder sort, Period period, String source, String lang, String keyword, int page, int size) {
+
+        /**
+         * 同じ話題の記事を 1 件にまとめて表示するか。
+         * 出典・言語・キーワードで絞り込んだときは、条件に合う記事をそのまま全部出す。
+         */
+        public boolean grouped() {
+            return isBlank(source) && isBlank(lang) && isBlank(keyword);
+        }
+
+        private static boolean isBlank(String s) {
+            return s == null || s.isBlank();
+        }
+    }
 
     private final ArticleRepository repo;
 
@@ -69,6 +85,30 @@ public class ArticleQueryService {
         return repo.findAll(spec(q), PageRequest.of(Math.max(0, q.page()), q.size(), sort));
     }
 
+    /**
+     * 代表記事ごとに、同じ話題を扱う他の記事（古い順）を返す。キーは代表記事の ID。
+     */
+    public Map<Long, List<Article>> related(List<Article> leads) {
+        Map<Long, Article> leadByCluster = new HashMap<>();
+        for (Article a : leads) {
+            if (a.getClusterSize() > 1 && a.getClusterId() != null) {
+                leadByCluster.put(a.getClusterId(), a);
+            }
+        }
+        Map<Long, List<Article>> result = new HashMap<>();
+        if (leadByCluster.isEmpty()) {
+            return result;
+        }
+        for (Article other : repo.findByClusterIdIn(leadByCluster.keySet())) {
+            Article lead = leadByCluster.get(other.getClusterId());
+            if (lead != null && !lead.getId().equals(other.getId())) {
+                result.computeIfAbsent(lead.getId(), k -> new ArrayList<>()).add(other);
+            }
+        }
+        result.values().forEach(list -> list.sort(Comparator.comparing(Article::getPublishedAt)));
+        return result;
+    }
+
     public List<String> sources() {
         return repo.findSourceNames();
     }
@@ -80,6 +120,9 @@ public class ArticleQueryService {
     private static Specification<Article> spec(Query q) {
         return (root, cq, cb) -> {
             List<Predicate> ps = new ArrayList<>();
+            if (q.grouped()) {
+                ps.add(cb.isTrue(root.get("clusterLead")));
+            }
             if (q.period().duration != null) {
                 ps.add(cb.greaterThan(root.get("publishedAt"), Instant.now().minus(q.period().duration)));
             }

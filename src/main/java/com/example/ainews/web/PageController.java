@@ -42,6 +42,7 @@ public class PageController {
         Page<Article> articles = query.search(new Query(sortOrder, p, source, lang, q, page, PAGE_SIZE));
 
         model.addAttribute("articles", articles);
+        model.addAttribute("related", query.related(articles.getContent()));
         model.addAttribute("sort", sortOrder.name().toLowerCase());
         model.addAttribute("period", p.key());
         model.addAttribute("periods", Period.values());
@@ -53,6 +54,8 @@ public class PageController {
         model.addAttribute("lastCrawl", crawl.getLastCrawl());
         model.addAttribute("crawling", crawl.isRunning());
         model.addAttribute("translationEnabled", translation.isEnabled());
+        // 巡回時に自動で翻訳しているなら、日本語表示を最初からオンにする
+        model.addAttribute("bulkTranslation", translation.isBulkEnabled());
         return "index";
     }
 

@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -93,14 +94,41 @@ public final class TextUtils {
         return fallback;
     }
 
-    /** タイトルの類似度判定用の単語集合 */
+    private static final Pattern CJK = Pattern.compile("[\\p{IsHan}\\p{IsHiragana}\\p{IsKatakana}ー]+");
+    private static final Pattern WORD = Pattern.compile("[\\p{IsLatin}\\p{N}]+");
+    private static final Set<String> JA_STOP_BIGRAMS = Set.of("こと", "ため", "する", "した", "して", "など", "ている");
+
+    /**
+     * タイトルの類似度判定用の単語集合。
+     * 英語などは単語ごと、日本語は空白で区切られないので 2 文字ずつ（バイグラム）に分ける。
+     */
     public static Set<String> titleTokens(String title) {
         if (title == null) {
             return Set.of();
         }
-        return Arrays.stream(title.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+"))
-                .filter(w -> w.length() > 1 && !STOP_WORDS.contains(w))
-                .collect(Collectors.toCollection(HashSet::new));
+        String lower = title.toLowerCase(Locale.ROOT);
+        Set<String> tokens = new HashSet<>();
+        Matcher w = WORD.matcher(lower);
+        while (w.find()) {
+            String word = w.group();
+            if (word.length() > 1 && !STOP_WORDS.contains(word)) {
+                tokens.add(word);
+            }
+        }
+        Matcher c = CJK.matcher(lower);
+        while (c.find()) {
+            String run = c.group();
+            if (run.length() == 1) {
+                continue;
+            }
+            for (int i = 0; i + 2 <= run.length(); i++) {
+                String bigram = run.substring(i, i + 2);
+                if (!JA_STOP_BIGRAMS.contains(bigram)) {
+                    tokens.add(bigram);
+                }
+            }
+        }
+        return tokens;
     }
 
     public static double jaccard(Set<String> a, Set<String> b) {

@@ -21,6 +21,14 @@ class TextUtilsTest {
     }
 
     @Test
+    void japaneseTitlesAreSplitIntoBigrams() {
+        assertThat(TextUtils.titleTokens("生成AIの新会社"))
+                .contains("ai", "生成", "新会", "会社")
+                .doesNotContain("生成aiの新会社");
+        assertThat(TextUtils.titleTokens("OpenAI launches GPT-6")).containsExactlyInAnyOrder("openai", "launches", "gpt");
+    }
+
+    @Test
     void ogImageExtraction() {
         String html = "<html><head><meta property=\"og:image\" content=\"/img/a.jpg\"></head></html>";
         assertThat(OgImageFetcher.extract(html, "https://site.example/post")).isEqualTo("https://site.example/img/a.jpg");

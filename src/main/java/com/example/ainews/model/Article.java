@@ -71,6 +71,17 @@ public class Article {
     /** 注目度スコア（時間減衰込み） */
     private double score;
 
+    /** 同じ話題の記事のまとまり（まとまりの中で一番小さい記事 ID）。まとまりが無ければ自分の ID */
+    private Long clusterId;
+
+    /** まとまりの代表記事か（一覧には代表記事だけを出し、他の記事は「他の出典」として添える） */
+    @Column(columnDefinition = "boolean default true not null")
+    private boolean clusterLead = true;
+
+    /** まとまりに含まれる記事数（自分を含む） */
+    @Column(columnDefinition = "integer default 1 not null")
+    private int clusterSize = 1;
+
     @Column(length = 1024)
     private String titleJa;
 
@@ -117,6 +128,12 @@ public class Article {
     public void setCoverage(int coverage) { this.coverage = coverage; }
     public double getScore() { return score; }
     public void setScore(double score) { this.score = score; }
+    public Long getClusterId() { return clusterId; }
+    public void setClusterId(Long clusterId) { this.clusterId = clusterId; }
+    public boolean isClusterLead() { return clusterLead; }
+    public void setClusterLead(boolean clusterLead) { this.clusterLead = clusterLead; }
+    public int getClusterSize() { return clusterSize; }
+    public void setClusterSize(int clusterSize) { this.clusterSize = clusterSize; }
     public String getTitleJa() { return titleJa; }
     public void setTitleJa(String titleJa) { this.titleJa = titleJa; }
     public String getSummaryJa() { return summaryJa; }

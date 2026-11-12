@@ -47,4 +47,17 @@ class RssCrawlerTest {
         assertThat(items.get(0).sourceSite()).isEqualTo("https://www.nikkei.com");
         assertThat(items.get(0).title()).isEqualTo("国内企業が生成AIを全社導入");
     }
+
+    @Test
+    void keywordsKeepOnlyAiArticles() throws Exception {
+        Feed feed = new Feed("Sample", "https://www.example.com/feed", "en", 1.0, false);
+        feed.setKeywords(List.of("openai", "生成AI"));
+        List<FetchedArticle> items = crawler.parse(feed, resource("sample-rss.xml"));
+        assertThat(items).extracting(FetchedArticle::title).containsExactly("OpenAI releases a new reasoning model", "生成AIの新サービスが登場");
+
+        Feed ai = new Feed("Sample", "https://www.example.com/feed", "ja", 1.0, false);
+        ai.setKeywords(List.of("AI"));
+        assertThat(RssCrawler.matchesKeywords(ai, "国内企業が生成AIを導入", null)).isTrue();
+        assertThat(RssCrawler.matchesKeywords(ai, "New email client said to launch", "MAIL")).isFalse();
+    }
 }

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +80,14 @@ public class ApiController {
     public ResponseEntity<Map<String, Object>> crawlNow() {
         if (crawl.isRunning()) {
             return ResponseEntity.accepted().body(Map.of("started", false, "message", "更新中です"));
+        }
+        Duration wait = crawl.manualCooldownRemaining();
+        if (!wait.isZero()) {
+            long minutes = Math.max(1, (wait.toSeconds() + 59) / 60);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .header("Retry-After", String.valueOf(wait.toSeconds()))
+                    .body(Map.of("started", false, "message",
+                            "少し前に更新したばかりです。あと " + minutes + " 分ほどで再び更新できます"));
         }
         Thread.startVirtualThread(crawl::crawlAll);
         return ResponseEntity.accepted().body(Map.of("started", true));

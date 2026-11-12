@@ -7,6 +7,7 @@ import com.example.ainews.crawler.OgImageFetcher;
 import com.example.ainews.crawler.RssCrawler;
 import com.example.ainews.model.Article;
 import com.example.ainews.repo.ArticleRepository;
+import com.example.ainews.translate.TranslationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -38,18 +39,21 @@ public class CrawlService {
     private final OgImageFetcher ogImage;
     private final ArticleIngestService ingest;
     private final ArticleRepository repo;
+    private final TranslationService translation;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, SourceStatus> status = new ConcurrentHashMap<>();
     private volatile Instant lastCrawl;
+    private volatile Instant lastStarted;
 
     public CrawlService(AiNewsProperties props, RssCrawler rss, HackerNewsCrawler hn, OgImageFetcher ogImage,
-                        ArticleIngestService ingest, ArticleRepository repo) {
+                        ArticleIngestService ingest, ArticleRepository repo, TranslationService translation) {
         this.props = props;
         this.rss = rss;
         this.hn = hn;
         this.ogImage = ogImage;
         this.ingest = ingest;
         this.repo = repo;
+        this.translation = translation;
     }
 
     @Scheduled(initialDelayString = "${ainews.crawl.initial-delay:PT5S}", fixedDelayString = "${ainews.crawl.interval:PT30M}")
@@ -65,6 +69,24 @@ public class CrawlService {
         return lastCrawl;
     }
 
+    /**
+     * 「今すぐ更新」を受け付けられるようになるまでの残り時間。受け付けられるなら Duration.ZERO。
+     * 前回の巡回（自動・手動どちらでも）を始めてから一定時間は、何度押されても巡回しない。
+     */
+    public Duration manualCooldownRemaining() {
+        Instant started = lastStarted;
+        if (started == null) {
+            return Duration.ZERO;
+        }
+        Duration left = Duration.between(Instant.now(), started.plus(props.getCrawl().getManualCooldown()));
+        return left.isNegative() ? Duration.ZERO : left;
+    }
+
+    /** テスト用: 前回の巡回開始時刻を設定する */
+    public void markStartedForTest(Instant startedAt) {
+        this.lastStarted = startedAt;
+    }
+
     public List<SourceStatus> getStatus() {
         return status.values().stream().sorted((a, b) -> a.name().compareToIgnoreCase(b.name())).toList();
     }
@@ -74,6 +96,7 @@ public class CrawlService {
         if (!running.compareAndSet(false, true)) {
             return false;
         }
+        lastStarted = Instant.now();
         try {
             Duration retention = Duration.ofDays(props.getCrawl().getRetentionDays());
             Instant cutoff = Instant.now().minus(retention);
@@ -114,6 +137,8 @@ public class CrawlService {
             fillMissingImages();
             ingest.purgeOlderThan(retention);
             ingest.rescore(retention);
+            // 新着の海外記事は、表示される前に日本語のタイトルと 3 行要約を作っておく
+            translation.translatePending(props.getTranslate().getAutoLimit(), props.getTranslate().getBatchSize());
             lastCrawl = Instant.now();
             log.info("crawl done: {} new articles", added);
             return true;
