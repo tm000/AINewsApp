@@ -95,7 +95,7 @@
       return true;
     } catch (e) {
       const msg = String((e && e.message) || e);
-      showToast(useLocal() ? 'スマホ内翻訳に失敗しました: ' + msg : msg);
+      showToast(useLocal() ? 'スマホ内翻訳に失敗しました: ' + msg + '（「スマホ内翻訳」の診断情報を確認）' : msg);
       if (auto && auto.checked && (useLocal() || msg.includes('上限'))) { auto.checked = false; writePref(false); }
       if (btn) btn.textContent = '日本語に翻訳';
       return false;
@@ -210,9 +210,21 @@
       deleteBtn.hidden = !saved || busy;
     }
 
+    const diagBox = document.getElementById('plamo-diag-box');
+    const diagPre = document.getElementById('plamo-diag');
+    function showDiag(text) {
+      if (!diagBox || !text) return;
+      diagPre.textContent = text;
+      diagBox.hidden = false;
+    }
+    if (local) {
+      local.onDiagnostics = showDiag;
+      if (typeof local.diagnostics === 'function') showDiag(local.diagnostics());
+    }
+
     if (local) {
       local.onProgress = (loaded, total) => {
-        if (!total || local.isReady()) return;
+        if (!total || local.isReady() || loaded >= total) return;
         const pct = Math.floor(loaded / total * 100);
         progress.hidden = false;
         progress.value = pct;
@@ -231,7 +243,7 @@
       local.setEnabled(true);
       busy = true;
       enableBtn.disabled = true;
-      status.textContent = 'モデルを準備しています…';
+      status.textContent = 'モデルを準備しています…（動作確認に 1 分ほどかかることがあります）';
       updateControls();
       refreshStatus();
       try {
@@ -249,6 +261,7 @@
         updateControls();
         await refreshStatus();
         status.textContent = '準備に失敗しました: ' + String((e && e.message) || e);
+        if (diagBox && !diagBox.hidden) diagBox.open = true;
       } finally {
         enableBtn.disabled = false;
       }
