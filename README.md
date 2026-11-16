@@ -56,6 +56,13 @@ Hacker News のランキング式と同じ考え方で、反響が大きいほ�
 Claude / Google / DeepL のときは、巡回のたびに未翻訳の海外記事を新しい順に最大 60 件（`TRANSLATE_AUTO_LIMIT`）、
 10 件ずつまとめて翻訳します。Claude Haiku 5.5 なら 1 記事あたりの費用は 0.1 円にもなりません。
 
+### スマホ内翻訳（PLaMo 3 Translate 0.8B）
+画面の「スマホ内翻訳」から、Preferred Networks の翻訳モデル [PLaMo 3 Translate 0.8B](https://huggingface.co/pfnet/plamo-3-translate-0.8b-GGUF)（GGUF・Q4_0、約550MB）をブラウザの中で動かして翻訳できる。サーバーや翻訳 API を使わないので回数制限が無い。
+- 実行エンジンは [wllama](https://github.com/ngxson/wllama) 3.13.0（llama.cpp の WebAssembly 版。WebGPU があれば GPU も使う）。`static/vendor/wllama/` に同梱
+- モデルは初回に Hugging Face から取得してブラウザの保存領域に置き、次回からはそれを使う。訳した結果も端末に保存する
+- 速く動かすため、全ページに `Cross-Origin-Opener-Policy: same-origin` と `Cross-Origin-Embedder-Policy: credentialless` を付けている（対応していないブラウザは 1 スレッドで動く）
+- ライセンスは [PLaMo Community License](https://plamo.preferredai.jp/info/plamo-community-license-ja)。個人・非商用は無料で登録不要、商用は登録が必要（売上 10 億円超は別契約）。Built with PLaMo
+
 ### Google 翻訳の API キーの作り方
 
 1. https://console.cloud.google.com でプロジェクトを作る（請求先アカウントの登録が必要。無料枠内なら請求は 0 円）

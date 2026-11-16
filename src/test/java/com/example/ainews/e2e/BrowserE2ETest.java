@@ -350,4 +350,98 @@ class BrowserE2ETest {
         org.assertj.core.api.Assertions.assertThat(((Number) overflow).intValue()).isLessThanOrEqualTo(0);
         failed = false;
     }
+
+    /** 本物のモデル（約550MB）の代わりに使う、すぐ答える偽のスマホ内翻訳 */
+    private static final String FAKE_PLAMO = """
+            (function () {
+              let ready = false;
+              const api = {
+                MODEL_SIZE_LABEL: '約550MB',
+                supported: () => true,
+                isEnabled: () => localStorage.getItem('ainews.plamo') === '1',
+                setEnabled: v => localStorage.setItem('ainews.plamo', v ? '1' : '0'),
+                isReady: () => ready,
+                ensureReady: async () => {
+                  if (ready) return;
+                  for (const p of [25, 60, 100]) {
+                    if (api.onProgress) api.onProgress(p * 1000, 100000);
+                    await new Promise(r => setTimeout(r, 30));
+                  }
+                  ready = true;
+                },
+                isDownloaded: async () => ready,
+                deleteModel: async () => { ready = false; },
+                translateArticle: async (id, t, s, withSummary) => {
+                  await api.ensureReady();
+                  const prev = api.cached(id) || {};
+                  const o = { titleJa: prev.titleJa || '[PLaMo] ' + t, summaryJa: withSummary && s ? '[PLaMo] ' + s : (prev.summaryJa || '') };
+                  localStorage.setItem('ainews.plamo.ja.' + id, JSON.stringify(o));
+                  return o;
+                },
+                cached: id => JSON.parse(localStorage.getItem('ainews.plamo.ja.' + id) || 'null'),
+              };
+              window.LocalTranslator = api;
+            })();
+            """;
+
+    @Test
+    @DisplayName("スマホ内翻訳（PLaMo）をオンにすると端末内で翻訳し、結果を覚えている")
+    void translatesOnDeviceWithPlamo() {
+        page.route(url("/plamo.js"), route -> route.fulfill(new com.microsoft.playwright.Route.FulfillOptions()
+                .setStatus(200).setContentType("application/javascript").setBody(FAKE_PLAMO)));
+        // サーバーの翻訳 API は呼ばれないことを確かめる
+        java.util.concurrent.atomic.AtomicInteger serverCalls = new java.util.concurrent.atomic.AtomicInteger();
+        page.onRequest(r -> { if (r.url().contains("/translate")) serverCalls.incrementAndGet(); });
+
+        page.navigate(url("/"));
+        page.locator("#plamo-open").click();
+        assertThat(page.locator("#plamo-dialog")).isVisible();
+        assertThat(page.locator("#plamo-status")).hasText("オフ");
+        page.locator("#plamo-enable").click();
+        assertThat(page.locator("#plamo-status")).hasText("オン（準備完了）");
+        assertThat(page.locator("#plamo-disable")).isVisible();
+        page.locator("#plamo-close").click();
+
+        // オンにすると海外記事がまとめて日本語になる（サーバーの利用上限とも無関係）
+        assertThat(page.getByLabel("海外記事を日本語で表示")).isChecked();
+        assertThat(card("Brand new AI story").locator(".t-ja")).hasText("[PLaMo] Brand new AI story");
+        assertThat(card("QUOTA limited story").locator(".t-ja")).hasText("[PLaMo] QUOTA limited story");
+
+        // 要約はボタンで訳す
+        Locator fresh = card("Brand new AI story");
+        fresh.locator("button.translate-summary").click();
+        assertThat(fresh.locator(".s-ja")).hasText("[PLaMo] A fresh summary");
+
+        // 再読み込みしても端末に残った訳がすぐ出る
+        page.reload();
+        assertThat(card("Brand new AI story").locator(".t-ja")).isVisible();
+        assertThat(card("Brand new AI story").locator(".s-ja")).hasText("[PLaMo] A fresh summary");
+        org.assertj.core.api.Assertions.assertThat(serverCalls.get()).isZero();
+        failed = false;
+    }
+
+    @Test
+    @DisplayName("ブラウザ内の翻訳エンジンを配信でき、モデルを取得できないときは案内する")
+    void servesOnDeviceEngineAndReportsDownloadFailure() {
+        page.navigate(url("/"));
+        // 複数スレッドで動かすためのヘッダーが効いている
+        assertThat(page.locator("body")).isVisible();
+        org.assertj.core.api.Assertions.assertThat(page.evaluate("() => self.crossOriginIsolated")).isEqualTo(true);
+        // 翻訳エンジン（wasm）が正しい形式で配信されている
+        Object wasmType = page.evaluate("async () => (await fetch('/vendor/wllama/wllama.wasm')).headers.get('content-type')");
+        org.assertj.core.api.Assertions.assertThat(String.valueOf(wasmType)).startsWith("application/wasm");
+        Object loaded = page.evaluate("async () => typeof (await import('/vendor/wllama/index.js')).Wllama");
+        org.assertj.core.api.Assertions.assertThat(loaded).isEqualTo("function");
+        // サムネイルは今まで通り表示される
+        Object imgOk = page.evaluate("() => new Promise(r => { const i = document.querySelector('.thumb img');"
+                + " if (i.complete) r(i.naturalWidth > 0); else { i.onload = () => r(true); i.onerror = () => r(false); } })");
+        org.assertj.core.api.Assertions.assertThat(imgOk).isEqualTo(true);
+
+        // テスト環境は Hugging Face に出られないので、準備は失敗してオフに戻る
+        page.locator("#plamo-open").click();
+        page.locator("#plamo-enable").click();
+        assertThat(page.locator("#plamo-status")).containsText("準備に失敗しました");
+        assertThat(page.locator("#plamo-enable")).isVisible();
+        failed = false;
+    }
 }
