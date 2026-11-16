@@ -20,11 +20,14 @@ public record ArticleDto(
         int comments,
         String discussionUrl,
         int coverage,
-        double score
+        double score,
+        Long clusterId,
+        int clusterSize
 ) {
     public static ArticleDto of(Article a) {
         return new ArticleDto(a.getId(), a.getUrl(), a.getTitle(), a.getTitleJa(), a.getSummary(), a.getSummaryJa(),
                 a.getSourceName(), a.getSourceSite(), a.getImageUrl(), a.getPublishedAt(), a.getLanguage(),
-                a.getPoints(), a.getComments(), a.getDiscussionUrl(), a.getCoverage(), a.getScore());
+                a.getPoints(), a.getComments(), a.getDiscussionUrl(), a.getCoverage(), a.getScore(),
+                a.getClusterId(), a.getClusterSize());
     }
 }

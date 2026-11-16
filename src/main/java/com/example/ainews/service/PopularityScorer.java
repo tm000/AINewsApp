@@ -6,7 +6,12 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -25,27 +30,66 @@ public class PopularityScorer {
     static final Duration COVERAGE_WINDOW = Duration.ofHours(48);
 
     public void scoreAll(List<Article> articles, Instant now) {
+        int n = articles.size();
         List<Set<String>> tokens = articles.stream().map(a -> TextUtils.titleTokens(a.getTitle())).toList();
-        for (int i = 0; i < articles.size(); i++) {
+        int[] coverage = new int[n];
+        int[] parent = new int[n];
+        for (int i = 0; i < n; i++) {
+            parent[i] = i;
+        }
+        for (int i = 0; i < n; i++) {
+            if (tokens.get(i).size() < 3) {
+                continue;
+            }
             Article a = articles.get(i);
-            int coverage = 0;
-            if (tokens.get(i).size() >= 3) {
-                for (int j = 0; j < articles.size(); j++) {
-                    Article b = articles.get(j);
-                    if (i == j || b.getSourceName().equals(a.getSourceName())) {
-                        continue;
-                    }
-                    if (Duration.between(a.getPublishedAt(), b.getPublishedAt()).abs().compareTo(COVERAGE_WINDOW) > 0) {
-                        continue;
-                    }
-                    if (TextUtils.jaccard(tokens.get(i), tokens.get(j)) >= SIMILARITY_THRESHOLD) {
-                        coverage++;
-                    }
+            for (int j = i + 1; j < n; j++) {
+                Article b = articles.get(j);
+                if (tokens.get(j).size() < 3 || b.getSourceName().equals(a.getSourceName())) {
+                    continue;
+                }
+                if (Duration.between(a.getPublishedAt(), b.getPublishedAt()).abs().compareTo(COVERAGE_WINDOW) > 0) {
+                    continue;
+                }
+                if (TextUtils.jaccard(tokens.get(i), tokens.get(j)) >= SIMILARITY_THRESHOLD) {
+                    coverage[i]++;
+                    coverage[j]++;
+                    parent[find(parent, i)] = find(parent, j);
                 }
             }
-            a.setCoverage(coverage);
+        }
+        for (int i = 0; i < n; i++) {
+            Article a = articles.get(i);
+            a.setCoverage(coverage[i]);
             a.setScore(score(a, now));
         }
+        assignClusters(articles, parent);
+    }
+
+    /** 同じ話題の記事をまとめ、注目度が一番高い記事をまとまりの代表にする */
+    private static void assignClusters(List<Article> articles, int[] parent) {
+        Map<Integer, List<Article>> groups = new HashMap<>();
+        for (int i = 0; i < articles.size(); i++) {
+            groups.computeIfAbsent(find(parent, i), k -> new ArrayList<>()).add(articles.get(i));
+        }
+        Comparator<Article> best = Comparator.comparingDouble(Article::getScore).reversed()
+                .thenComparing(Article::getPublishedAt);
+        for (List<Article> group : groups.values()) {
+            Long clusterId = group.stream().map(Article::getId).filter(Objects::nonNull).min(Long::compare).orElse(null);
+            Article lead = group.stream().min(best).orElseThrow();
+            for (Article a : group) {
+                a.setClusterId(clusterId);
+                a.setClusterLead(a == lead);
+                a.setClusterSize(group.size());
+            }
+        }
+    }
+
+    private static int find(int[] parent, int i) {
+        while (parent[i] != i) {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        return i;
     }
 
     public double score(Article a, Instant now) {

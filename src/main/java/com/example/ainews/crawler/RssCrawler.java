@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /** RSS / Atom フィードから記事を取得する */
 @Component
@@ -77,11 +78,39 @@ public class RssCrawler {
                 publishedAt = Instant.now();
             }
 
+            if (!matchesKeywords(feed, title, summary)) {
+                continue;
+            }
             result.add(new FetchedArticle(
                     link.trim(), title, summary, sourceName, sourceSite, feed.getName(), image, publishedAt,
                     TextUtils.detectLanguage(title, feed.getLanguage()), feed.getWeight(), 0, 0, null));
         }
         return result;
+    }
+
+    /** フィードに keywords があれば、タイトルか要約にどれかを含む記事だけを通す */
+    static boolean matchesKeywords(Feed feed, String title, String summary) {
+        List<String> keywords = feed.getKeywords();
+        if (keywords == null || keywords.isEmpty()) {
+            return true;
+        }
+        String text = (title == null ? "" : title) + " " + (summary == null ? "" : summary);
+        for (String k : keywords) {
+            if (k != null && !k.isBlank() && keywordPattern(k).matcher(text).find()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final java.util.Map<String, Pattern> KEYWORD_PATTERNS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 英字の語は単語の一部に一致しないようにする（"AI" が "MAIL" や "said" に一致しないように） */
+    private static Pattern keywordPattern(String keyword) {
+        return KEYWORD_PATTERNS.computeIfAbsent(keyword, k -> {
+            String q = Pattern.quote(k.trim());
+            return Pattern.compile("(?<![A-Za-z0-9])" + q + "(?![A-Za-z0-9])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        });
     }
 
     private static String entryHtml(SyndEntry entry) {

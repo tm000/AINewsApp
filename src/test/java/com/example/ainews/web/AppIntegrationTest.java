@@ -4,6 +4,7 @@ import com.example.ainews.crawler.FetchedArticle;
 import com.example.ainews.model.Article;
 import com.example.ainews.repo.ArticleRepository;
 import com.example.ainews.service.ArticleIngestService;
+import com.example.ainews.service.CrawlService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +35,7 @@ class AppIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ArticleIngestService ingest;
     @Autowired ArticleRepository repo;
+    @Autowired CrawlService crawlService;
 
     @BeforeEach
     void setUp() {
@@ -44,7 +47,10 @@ class AppIntegrationTest {
                 new FetchedArticle("https://example.com/hot", "Hot AI story", null, "Example",
                         "https://example.com", "Example", null, now.minus(Duration.ofHours(6)), "en", 1.0, 0, 0, null),
                 new FetchedArticle("https://example.jp/ja", "国内のAIニュース", null, "日本の媒体",
-                        "https://example.jp", "日本の媒体", null, now.minus(Duration.ofHours(1)), "ja", 1.0, 0, 0, null)));
+                        "https://example.jp", "日本の媒体", null, now.minus(Duration.ofHours(1)), "ja", 1.0, 0, 0, null),
+                // 同じ話題を別の媒体が報じた記事
+                new FetchedArticle("https://other.example/story", "Hot AI story spreads", null, "Other",
+                        "https://other.example", "Other", null, now.minus(Duration.ofHours(5)), "en", 1.0, 0, 0, null)));
         // HN 側で同じ URL の記事が見つかったら、ポイントだけが足される
         ingest.ingest(List.of(new FetchedArticle("https://www.example.com/hot/", "Hot AI story (HN)", null, "example.com",
                 "https://example.com", "Hacker News", null, now.minus(Duration.ofHours(6)), "en", 1.0, 800, 300,
@@ -54,7 +60,7 @@ class AppIntegrationTest {
 
     @Test
     void mergesHackerNewsIntoExistingArticle() {
-        assertThat(repo.count()).isEqualTo(3);
+        assertThat(repo.count()).isEqualTo(4);
         Article hot = repo.findByUrl("https://example.com/hot").orElseThrow();
         assertThat(hot.getSourceName()).isEqualTo("Example");
         assertThat(hot.getPoints()).isEqualTo(800);
@@ -69,6 +75,30 @@ class AppIntegrationTest {
                 .andExpect(jsonPath("$.items[0].title").value("Hot AI story"));
         mvc.perform(get("/api/articles").param("lang", "ja"))
                 .andExpect(jsonPath("$.totalItems").value(1));
+    }
+
+    @Test
+    void groupsSameStoryUnderMostPopularArticle() throws Exception {
+        // 一覧では同じ話題の記事は 1 件にまとまる
+        mvc.perform(get("/api/articles"))
+                .andExpect(jsonPath("$.totalItems").value(3));
+        // 出典で絞り込んだときはまとめない
+        mvc.perform(get("/api/articles").param("source", "Other"))
+                .andExpect(jsonPath("$.totalItems").value(1));
+        mvc.perform(get("/").param("sort", "popular"))
+                .andExpect(content().string(containsString("同じ話題を他 1 件の記事が報道")))
+                .andExpect(content().string(containsString("Hot AI story spreads")));
+    }
+
+    @Test
+    void manualCrawlHasCooldown() throws Exception {
+        Instant started = Instant.now();
+        crawlService.markStartedForTest(started);
+        mvc.perform(post("/api/crawl"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value(containsString("分ほどで再び更新できます")));
+        crawlService.markStartedForTest(started.minus(Duration.ofMinutes(6)));
+        assertThat(crawlService.manualCooldownRemaining()).isZero();
     }
 
     @Test

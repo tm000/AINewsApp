@@ -41,6 +41,29 @@ public class DeepLTranslator implements Translator {
     }
 
     @Override
+    public boolean supportsBulk() {
+        return true;
+    }
+
+    /** タイトルと要約をまとめて 1 回のリクエストで翻訳する */
+    @Override
+    public List<Digest> digest(List<DigestRequest> items) throws Exception {
+        List<String> texts = new ArrayList<>();
+        for (DigestRequest r : items) {
+            texts.add(r.title());
+            texts.add(r.summary() == null ? "" : r.summary());
+        }
+        // 記事ごとに言語が違うことがあるので、元の言語は DeepL に自動判定させる
+        List<String> res = toJapanese(texts, null);
+        List<Digest> out = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            String summary = res.get(i * 2 + 1);
+            out.add(new Digest(res.get(i * 2), summary == null || summary.isBlank() ? null : summary));
+        }
+        return out;
+    }
+
+    @Override
     public List<String> toJapanese(List<String> texts, String sourceLang) throws Exception {
         ObjectNode body = mapper.createObjectNode();
         var arr = body.putArray("text");

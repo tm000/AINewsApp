@@ -16,7 +16,14 @@
       refresh.disabled = true;
       refresh.textContent = '更新中…';
       try {
-        await fetch('/api/crawl', { method: 'POST' });
+        const res = await fetch('/api/crawl', { method: 'POST' });
+        if (res.status === 429) {
+          const data = await res.json().catch(() => ({}));
+          showToast(data.message || 'しばらくしてからもう一度お試しください');
+          refresh.disabled = false;
+          refresh.textContent = '今すぐ更新';
+          return;
+        }
         for (let i = 0; i < 60; i++) {
           await new Promise(r => setTimeout(r, 3000));
           const s = await (await fetch('/api/status')).json();
@@ -42,6 +49,9 @@
     const sOrig = card.querySelector('.s-orig');
     if (showJa && sJa && sOrig && !sJa.textContent.trim()) sOrig.hidden = false;
     card.dataset.showing = showJa ? 'ja' : 'orig';
+    // タイトルだけ自動翻訳済みで要約が未翻訳のときは「要約も翻訳」を出す
+    const sumBtn = card.querySelector('.translate-summary');
+    if (sumBtn) sumBtn.hidden = !(showJa && sJa && !sJa.textContent.trim());
     const btn = card.querySelector('.translate');
     if (btn) btn.textContent = showJa ? '原文を表示' : '日本語に翻訳';
   }
@@ -79,9 +89,38 @@
     });
   });
 
+  cards.forEach(card => {
+    const sumBtn = card.querySelector('.translate-summary');
+    if (!sumBtn) return;
+    sumBtn.addEventListener('click', async () => {
+      sumBtn.disabled = true;
+      sumBtn.textContent = '翻訳中…';
+      try {
+        const res = await fetch('/api/articles/' + card.dataset.id + '/translate', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.status);
+        if (data.titleJa) card.querySelector('.t-ja').textContent = data.titleJa;
+        card.querySelector('.s-ja').textContent = data.summaryJa || '';
+        setLang(card, true);
+      } catch (e) {
+        showToast(String(e.message || e));
+      } finally {
+        sumBtn.disabled = false;
+        sumBtn.textContent = '要約も翻訳';
+      }
+    });
+  });
+
   const auto = document.getElementById('auto-translate');
   const KEY = 'ainews.autoTranslate';
-  function readPref() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
+  // 保存された設定が無ければ、サーバーが自動翻訳しているときは日本語表示を既定にする
+  function readPref() {
+    const fallback = !!auto && auto.dataset.defaultOn === 'true';
+    try {
+      const v = localStorage.getItem(KEY);
+      return v === null ? fallback : v === '1';
+    } catch (e) { return fallback; }
+  }
   function writePref(v) { try { localStorage.setItem(KEY, v ? '1' : '0'); } catch (e) { /* 保存できなくても動作は続ける */ } }
 
   async function applyAuto(on) {

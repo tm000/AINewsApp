@@ -50,7 +50,7 @@
             <th:block th:if="${lastCrawl != null}">・最終更新 <span th:text="${@fmt.ago(lastCrawl)}"></span></th:block>
         </span>
         <label class="switch" th:if="${translationEnabled}">
-            <input type="checkbox" id="auto-translate"> 海外記事を日本語で表示
+            <input type="checkbox" id="auto-translate" th:attr="data-default-on=${bulkTranslation}"> 海外記事を日本語で表示
         </label>
     </div>
 
@@ -90,10 +90,23 @@
                        rel="noopener noreferrer" title="Hacker News での反響">
                         ▲ <span th:text="${a.points}"></span> ・ 💬 <span th:text="${a.comments}"></span>
                     </a>
-                    <span class="pill" th:if="${a.coverage > 0}" title="同じ話題を扱う他媒体の数"
+                    <span class="pill" th:if="${a.coverage > 0 and related[a.id] == null}" title="同じ話題を扱う他媒体の数"
                           th:text="|他 ${a.coverage} 媒体も報道|"></span>
                     <button type="button" class="btn-link translate" th:if="${a.foreign and translationEnabled}">日本語に翻訳</button>
+                    <button type="button" class="btn-link translate-summary" hidden
+                            th:if="${a.foreign and translationEnabled and a.summary != null}">要約も翻訳</button>
                 </div>
+                <details class="related" th:if="${related[a.id] != null}">
+                    <summary th:text="|同じ話題を他 ${#lists.size(related[a.id])} 件の記事が報道|">同じ話題の記事</summary>
+                    <ul>
+                        <li th:each="r : ${related[a.id]}">
+                            <span class="source" th:text="${r.sourceName}">出典</span>
+                            <a th:href="${r.url}" target="_blank" rel="noopener noreferrer"
+                               th:text="${r.titleJa != null ? r.titleJa : r.title}">タイトル</a>
+                            <time th:datetime="${r.publishedAt}" th:text="${@fmt.ago(r.publishedAt)}"></time>
+                        </li>
+                    </ul>
+                </details>
             </div>
         </li>
     </ol>

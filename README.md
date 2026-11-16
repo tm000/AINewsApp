@@ -5,6 +5,8 @@
 - 各記事に**出典（媒体名）**を表示し、タップすると出典元のページが開きます
 - 記事に画像があれば**サムネイル**を表示（RSS の画像 → 無ければ記事ページの og:image）
 - 海外記事は**日本語に翻訳**できます（記事ごとのボタン、または「海外記事を日本語で表示」スイッチ）
+  - Claude API を設定すると、巡回のたびに新着の海外記事を**自動で翻訳し、日本語の 3 行要約**を付けます
+- **同じ話題の記事は 1 枚のカードにまとめ**、「同じ話題を他 N 件の記事が報道」から他の出典を開けます
 - キーワード・期間・言語（日本語/海外）・出典で絞り込み
 - スマホ表示に最適化、ダークモード対応
 
@@ -14,12 +16,16 @@
 
 | 種類 | 取得元 |
 | --- | --- |
-| 海外メディア | TechCrunch, The Verge, VentureBeat, MIT Technology Review, Ars Technica, WIRED, The Guardian |
-| 企業ブログ | OpenAI, Google AI Blog, Hugging Face |
-| 国内 | ITmedia AI+, Google ニュース（「生成AI」検索） |
+| 海外メディア | TechCrunch, The Verge, VentureBeat, MIT Technology Review, Ars Technica, WIRED, The Guardian, Google News（Anthropic・Meta AI など） |
+| 企業ブログ | OpenAI, Google AI Blog, Google DeepMind, Microsoft AI Blog, NVIDIA Blog, Hugging Face |
+| コミュニティ | Reddit（r/MachineLearning, r/LocalLLaMA の 1 日の上位） |
+| 国内 | ITmedia AI+, AINOW, 日経クロステック, Publickey, GIGAZINE, Google ニュース（「生成AI」検索） |
+
+AI 専門でない媒体（NVIDIA Blog・日経クロステック・Publickey・GIGAZINE）は、フィードの `keywords` に挙げた語
+（AI・生成AI・LLM など）をタイトルか要約に含む記事だけを取り込みます。
 | 反響 | Hacker News（Algolia API）のポイント・コメント数 |
 
-30 分ごとに自動で巡回します（画面右上の「今すぐ更新」で手動実行も可）。30 日より古い記事は自動で削除します。
+30 分ごとに自動で巡回します（画面右上の「今すぐ更新」で手動実行も可。ただし前回の巡回開始から 5 分間は受け付けません）。30 日より古い記事は自動で削除します。
 
 ## 注目度の計算
 
@@ -29,18 +35,37 @@
 ```
 
 Hacker News のランキング式と同じ考え方で、反響が大きいほど上がり、時間が経つほど下がります。
-「同じ話題を報じた他媒体の数」は 48 時間以内の記事のタイトルの単語の重なりで判定しています。
+「同じ話題を報じた他媒体の数」は 48 時間以内の記事のタイトルの単語の重なりで判定しています（日本語は 2 文字ずつに区切って比較）。
+同じ話題と判定した記事は 1 つにまとめ、注目度が一番高い記事を代表として一覧に出します。
+出典・言語・キーワードで絞り込んだときは、まとめずに条件に合う記事をすべて出します。
 
 ## 翻訳
 
 | 設定 | 内容 |
 | --- | --- |
+| `ANTHROPIC_API_KEY` | **Claude（おすすめ）**。タイトルの翻訳と日本語の 3 行要約を作り、巡回のたびに新着の海外記事を自動で処理します。既定のモデルは Claude Haiku 5.5（`CLAUDE_MODEL` で変更可） |
+| `GOOGLE_TRANSLATE_API_KEY` | **Google 翻訳**（Cloud Translation API、毎月 50 万文字まで無料）。巡回のたびに新着の海外記事のタイトルを自動で翻訳します（要約は「要約も翻訳」を押したときだけ） |
 | 何も設定しない | **MyMemory**（無料・登録不要、1 日 5,000 文字まで） |
 | `MYMEMORY_EMAIL` | MyMemory の無料枠が 1 日 50,000 文字に増えます |
-| `DEEPL_API_KEY` | **DeepL** を使います（DeepL API Free は月 50 万文字まで無料、要登録） |
+| `DEEPL_API_KEY` | **DeepL** を使います（DeepL API Free は月 50 万文字まで無料、要登録）。巡回時の自動翻訳もします（要約は原文の翻訳） |
 | `TRANSLATE_PROVIDER=none` | 翻訳を無効化 |
 
+複数設定したときは Claude → Google → DeepL → MyMemory の順に使います（`TRANSLATE_PROVIDER=claude|google|deepl|mymemory` で固定も可）。
 翻訳結果は DB に保存されるので、同じ記事を何度表示しても翻訳は 1 回だけです。
+
+Claude / Google / DeepL のときは、巡回のたびに未翻訳の海外記事を新しい順に最大 60 件（`TRANSLATE_AUTO_LIMIT`）、
+10 件ずつまとめて翻訳します。Claude Haiku 5.5 なら 1 記事あたりの費用は 0.1 円にもなりません。
+
+### Google 翻訳の API キーの作り方
+
+1. https://console.cloud.google.com でプロジェクトを作る（請求先アカウントの登録が必要。無料枠内なら請求は 0 円）
+2. 「API とサービス」→「ライブラリ」で **Cloud Translation API** を有効にする
+3. 「API とサービス」→「認証情報」→「認証情報を作成」→「API キー」。キーの制限で Cloud Translation API だけに絞る
+4. 無料枠を超えないように、「IAM と管理」→「割り当て」で Cloud Translation API の
+   「v2 and v3 general model characters per day」を **15,000** 程度に下げておく（30 日で 45 万文字）
+5. Render の環境変数 `GOOGLE_TRANSLATE_API_KEY` にキーを入れる
+
+1 日の上限に達すると、その日の残りは翻訳されず、翌日また自動で再開します。
 
 ## 起動方法
 
@@ -74,7 +99,7 @@ docker run -p 8080:8080 -v $(pwd)/data:/app/data ai-news
 | --- | --- | --- |
 | GET | `/api/articles?sort=new\|popular&period=day\|three_days\|week\|all&lang=ja\|foreign&source=&q=&page=&size=` | 記事一覧（JSON） |
 | POST | `/api/articles/{id}/translate` | 記事を日本語に翻訳 |
-| POST | `/api/crawl` | 今すぐ巡回 |
+| POST | `/api/crawl` | 今すぐ巡回（前回の巡回開始から 5 分以内は 429） |
 | GET | `/api/status` | 巡回状況・取得元ごとのエラー |
 
 ## テスト
